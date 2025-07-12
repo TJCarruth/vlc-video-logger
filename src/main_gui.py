@@ -55,33 +55,23 @@ class CarCounterGUI:
         self.open_btn = Button(controls_container, text="Open Video", command=self.open_video)
         self.open_btn.pack(side='top', pady=(0, 16), fill='x')
 
-        kb_btn_frame = Frame(controls_container)
-        kb_btn_frame.pack(side='top', pady=(16, 16), fill='x')
-        Button(kb_btn_frame, text="Play/Pause", command=self.toggle_play).pack(side='top', pady=1, fill='x')
-        speed_frame = Frame(kb_btn_frame)
-        speed_frame.pack(fill='x', pady=1)
-        Button(speed_frame, text="Speed -", command=self.slow_down).pack(side='left', expand=True, fill='x')
-        self.status_label = Label(speed_frame, anchor='center', width=5)
-        self.status_label.pack(side='left', padx=4, fill='x', expand=True)
-        Button(speed_frame, text="Speed +", command=self.speed_up).pack(side='left', expand=True, fill='x')
-        # Frame-by-frame controls
-        frame_frame = Frame(kb_btn_frame)
-        frame_frame.pack(fill='x', pady=1)
-        Button(frame_frame, text="Prev Frame", command=self.prev_frame).pack(side='left', expand=True, fill='x')
-        Button(frame_frame, text="Next Frame", command=self.next_frame).pack(side='left', expand=True, fill='x')
-
-        skip5s_frame = Frame(kb_btn_frame)
-        skip5s_frame.pack(fill='x', pady=1)
-        Button(skip5s_frame, text="Skip -5s", command=lambda: self.skip_seconds(-5)).pack(side='left', expand=True, fill='x')
-        Button(skip5s_frame, text="Skip +5s", command=lambda: self.skip_seconds(5)).pack(side='left', expand=True, fill='x')
-        skip5min_frame = Frame(kb_btn_frame)
-        skip5min_frame.pack(fill='x', pady=1)
-        Button(skip5min_frame, text="Skip -5min", command=lambda: self.skip_seconds(-300)).pack(side='left', expand=True, fill='x')
-        Button(skip5min_frame, text="Skip +5min", command=lambda: self.skip_seconds(300)).pack(side='left', expand=True, fill='x')
-        skip1hr_frame = Frame(kb_btn_frame)
-        skip1hr_frame.pack(fill='x', pady=1)
-        Button(skip1hr_frame, text="Skip -1hr", command=lambda: self.skip_seconds(-3600)).pack(side='left', expand=True, fill='x')
-        Button(skip1hr_frame, text="Skip +1hr", command=lambda: self.skip_seconds(3600)).pack(side='left', expand=True, fill='x')
+        # Keybindings info label (replaces playback buttons)
+        keybinds_text = (
+            "Video Controls:\n"
+            "  Space: Play/Pause\n"
+            "  = / - : Speed Up / Down\n"
+            "  , / . : Prev / Next Frame\n"
+            "  ; / ': Skip -5s / +5s\n"
+            "  [ / ]: Skip -5min / +5min\n"
+            "  {{ / }}: Skip -1hr / +1hr\n"
+            "\nLog Controls:\n"
+            "  Backspace: Delete Last Entry\n"
+            "  Ctrl+Z / Ctrl+Y: Undo / Redo\n"
+            "  a-z: Log Key Event\n"
+            "  Esc: Quit"
+        )
+        self.status_label = Label(controls_container, text=keybinds_text, anchor='w', justify='left', font=("TkDefaultFont", 10))
+        self.status_label.pack(side='top', pady=(8, 8), fill='x')
 
         log_btn_frame = Frame(controls_container)
         log_btn_frame.pack(side='top', pady=(40, 16), fill='x')
