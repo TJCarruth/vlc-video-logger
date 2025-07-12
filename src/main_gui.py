@@ -1,6 +1,6 @@
 import os
 import threading
-from tkinter import Tk, Button, Label, filedialog, StringVar, Frame, Text, Scrollbar, RIGHT, Y, LEFT, BOTH, simpledialog, messagebox, Toplevel
+from tkinter import Tk, Button, Label, Entry, filedialog, StringVar, Frame, Text, Scrollbar, RIGHT, Y, LEFT, BOTH, simpledialog, messagebox, Toplevel
 import vlc
 from csv_logger import CSVLogger
 from datetime import timedelta
@@ -44,6 +44,12 @@ class CarCounterGUI:
         controls_container = Frame(main_frame)
         controls_container.pack(side=LEFT, fill=Y, padx=5, pady=10)
         controls_container.pack(fill='y', expand=True)
+        # Frame rate entry. Used to calculate frame-by-frame stepping.
+        fr_label = Label(controls_container, text="Frame Rate (fps):")
+        fr_label.pack(side='top', pady=(0, 2), fill='x')
+        self.fps_var = StringVar(value="30")
+        self.fps_entry = Entry(controls_container, textvariable=self.fps_var, width=8)
+        self.fps_entry.pack(side='top', pady=(0, 8), fill='x')
 
         # --- Control Buttons ---
         self.instructions_btn = Button(controls_container, text="Instructions", command=self.show_instructions)
@@ -60,6 +66,12 @@ class CarCounterGUI:
         self.status_label = Label(speed_frame, anchor='center', width=5)
         self.status_label.pack(side='left', padx=4, fill='x', expand=True)
         Button(speed_frame, text="Speed +", command=self.speed_up).pack(side='left', expand=True, fill='x')
+        # Frame-by-frame controls
+        frame_frame = Frame(kb_btn_frame)
+        frame_frame.pack(fill='x', pady=1)
+        Button(frame_frame, text="Prev Frame", command=self.prev_frame).pack(side='left', expand=True, fill='x')
+        Button(frame_frame, text="Next Frame", command=self.next_frame).pack(side='left', expand=True, fill='x')
+
         skip5s_frame = Frame(kb_btn_frame)
         skip5s_frame.pack(fill='x', pady=1)
         Button(skip5s_frame, text="Skip -5s", command=lambda: self.skip_seconds(-5)).pack(side='left', expand=True, fill='x')
@@ -97,12 +109,41 @@ class CarCounterGUI:
         self.root.bind('<space>', lambda e: self.toggle_play())
         self.root.bind('<KeyPress-equal>', lambda e: self.speed_up())
         self.root.bind('<KeyPress-minus>', lambda e: self.slow_down())
+        self.root.bind('<comma>', lambda e: self.prev_frame())
+        self.root.bind('<period>', lambda e: self.next_frame())
         self.root.bind('<semicolon>', lambda e: self.skip_seconds(-5))
         self.root.bind("'", lambda e: self.skip_seconds(5))
         self.root.bind('[', lambda e: self.skip_seconds(-300))
         self.root.bind(']', lambda e: self.skip_seconds(300))
         self.root.bind('{', lambda e: self.skip_seconds(-3600))
         self.root.bind('}', lambda e: self.skip_seconds(3600))
+    def next_frame(self):
+        """
+        Advances the video by one frame using VLC's next_frame().
+        """
+        if self.player:
+            self.player.next_frame()
+            self.paused = True
+
+    def prev_frame(self):
+        """
+        Seeks back by one frame's worth of ms, then steps forward to the next frame for best accuracy.
+        """
+        if not self.player:
+            return
+        try:
+            fps = float(self.fps_var.get())
+            if fps <= 0:
+                fps = 30.0
+        except Exception:
+            fps = 30.0
+        ms_per_frame = int(1000 / fps)
+        cur_ms = self.player.get_time()
+        # Seek back 1.5 frames to ensure we land before the previous frame
+        seek_ms = max(0, cur_ms - int(ms_per_frame * 1.5))
+        self.player.set_time(seek_ms)
+        self.player.next_frame()
+        self.paused = True
         self.root.bind('<BackSpace>', lambda e: self.logger.undo(self) if self.logger else None)
         self.root.bind('<Control-z>', lambda e: self.logger.restore_last_undo(self) if self.logger else None)
         self.root.bind('<Control-y>', lambda e: self.logger.redo(self) if self.logger else None)
