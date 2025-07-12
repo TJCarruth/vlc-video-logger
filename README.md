@@ -34,7 +34,7 @@ vlc-video-logger
    python src/main.py
    ```
 
-## Packaging as a Standalone Executable (Windows)
+## Packaging as a Standalone Executable (Windows and Mac)
 
 To distribute the application as a single executable file, you can use [PyInstaller](https://pyinstaller.org/):
 
@@ -58,6 +58,7 @@ To distribute the application as a single executable file, you can use [PyInstal
 **Note:**
 - The user must have VLC installed on their system for video playback to work.
 - You may need to adjust the `--add-data` path format if using a different OS (see PyInstaller docs).
+- For Mac, you may need to codesign and notarize your app for distribution on newer versions of macOS (see PyInstaller and Apple documentation).
 
 ## Usage
 - Open a video file using the GUI.
