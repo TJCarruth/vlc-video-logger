@@ -1,7 +1,0 @@
-Things to change:
-
-put move the Frame Rate (fps) field below the "open video" button.
-set the default frame rate to 24. 
-
-Add text showing the the legend for observations.
-Make it an editable field labeled notes. 
