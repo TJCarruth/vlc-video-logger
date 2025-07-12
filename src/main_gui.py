@@ -52,8 +52,6 @@ class CarCounterGUI:
         self.fps_entry.pack(side='top', pady=(0, 8), fill='x')
 
         # --- Control Buttons ---
-        self.instructions_btn = Button(controls_container, text="Instructions", command=self.show_instructions)
-        self.instructions_btn.pack(side='top', pady=(0, 8), fill='x')
         self.open_btn = Button(controls_container, text="Open Video", command=self.open_video)
         self.open_btn.pack(side='top', pady=(0, 16), fill='x')
 
