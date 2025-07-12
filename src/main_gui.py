@@ -44,16 +44,16 @@ class CarCounterGUI:
         controls_container = Frame(main_frame)
         controls_container.pack(side=LEFT, fill=Y, padx=5, pady=10)
         controls_container.pack(fill='y', expand=True)
-        # Frame rate entry. Used to calculate frame-by-frame stepping.
-        fr_label = Label(controls_container, text="Frame Rate (fps):")
-        fr_label.pack(side='top', pady=(0, 2), fill='x')
-        self.fps_var = StringVar(value="30")
-        self.fps_entry = Entry(controls_container, textvariable=self.fps_var, width=8)
-        self.fps_entry.pack(side='top', pady=(0, 8), fill='x')
 
         # --- Control Buttons ---
         self.open_btn = Button(controls_container, text="Open Video", command=self.open_video)
         self.open_btn.pack(side='top', pady=(0, 16), fill='x')
+        # Frame rate entry. Used to calculate frame-by-frame stepping.
+        fr_label = Label(controls_container, text="Frame Rate (fps):")
+        fr_label.pack(side='top', pady=(0, 2), fill='x')
+        self.fps_var = StringVar(value="24")
+        self.fps_entry = Entry(controls_container, textvariable=self.fps_var, width=8)
+        self.fps_entry.pack(side='top', pady=(0, 8), fill='x')
 
         # Keybindings info label (replaces playback buttons)
         keybinds_text = (
@@ -70,8 +70,36 @@ class CarCounterGUI:
             "  Ctrl+f          : Search Log\n"
             "  a-z             : Log Key Event\n"
         )
+
         self.status_label = Label(controls_container, text=keybinds_text, anchor='w', justify='left', font=("Courier", 10))
         self.status_label.pack(side='top', pady=(8, 8), fill='x')
+
+        # Notes label and editable text field
+        notes_label = Label(controls_container, text="Notes:")
+        notes_label.pack(side='top', anchor='w', padx=2)
+        self.notes_text = Text(controls_container, height=1, width=24, wrap='word')
+        self.notes_text.pack(side='top', fill='x', padx=2, pady=(0, 8))
+        # Pre-fill with a legend for classification and flags
+        legend_text = (
+            "- classification -\n"
+            "j : passenger vehicle\n"
+            "k : large truck\n"
+            "y : TPRS movement\n"
+            "\n"
+            "- flags -\n"
+            "d : brake lights on before TPRS\n"
+            "f : brake lights on after TPRS\n"
+            "b : erratic behavior"
+        )
+        self.notes_text.insert('1.0', legend_text)
+
+        def _auto_resize_notes(event=None):
+            lines = int(self.notes_text.index('end-1c').split('.')[0])
+            self.notes_text.config(height=lines)
+
+        self.notes_text.bind('<KeyRelease>', _auto_resize_notes)
+        # Initial resize to fit pre-filled text
+        _auto_resize_notes()
 
         log_btn_frame = Frame(controls_container)
         log_btn_frame.pack(side='top', pady=(40, 16), fill='x')
@@ -106,6 +134,8 @@ class CarCounterGUI:
         self.root.bind(']', lambda e: self.skip_seconds(300))
         self.root.bind('{', lambda e: self.skip_seconds(-3600))
         self.root.bind('}', lambda e: self.skip_seconds(3600))
+        self.root.bind('<Escape>', lambda e: self.root.quit())
+        
     def next_frame(self):
         """
         Advances the video by one frame using VLC's next_frame().
@@ -123,9 +153,9 @@ class CarCounterGUI:
         try:
             fps = float(self.fps_var.get())
             if fps <= 0:
-                fps = 30.0
+                fps = 24.0
         except Exception:
-            fps = 30.0
+            fps = 24.0
         ms_per_frame = int(1000 / fps)
         cur_ms = self.player.get_time()
         # Seek back 1.5 frames to ensure we land before the previous frame
