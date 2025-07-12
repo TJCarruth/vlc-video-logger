@@ -67,8 +67,7 @@ class CarCounterGUI:
             "\nLog Controls:\n"
             "  Backspace: Delete Last Entry\n"
             "  Ctrl+Z / Ctrl+Y: Undo / Redo\n"
-            "  a-z: Log Key Event\n"
-            "  Esc: Quit"
+            "  a-z: Log Key Event"
         )
         self.status_label = Label(controls_container, text=keybinds_text, anchor='w', justify='left', font=("TkDefaultFont", 10))
         self.status_label.pack(side='top', pady=(8, 8), fill='x')
@@ -136,7 +135,6 @@ class CarCounterGUI:
         self.root.bind('<Control-z>', lambda e: self.logger.restore_last_undo(self) if self.logger else None)
         self.root.bind('<Control-y>', lambda e: self.logger.redo(self) if self.logger else None)
         self.log_text.bind('<Button-1>', self.on_log_click)
-        self.root.bind('<Escape>', lambda e: self.root.quit())
         for char in 'abcdefghijklmnopqrstuvwxyz':
             self.root.bind(f'<KeyPress-{char}>', self.log_key_event)
             self.root.bind(f'<KeyPress-{char.upper()}>', self.log_key_event)

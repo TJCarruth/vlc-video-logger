@@ -1,11 +1,9 @@
 Things to change:
 
-remove the instructions button.
-
 put move the Frame Rate (fps) field below the "open video" button.
 set the default frame rate to 24. 
 
-replace the video playback buttons with text explaining the keybinds. 
-
 Add text showing the the legend for observations.
 Make it an editable field labeled notes.
+
+remove the esc keybind.
