@@ -58,18 +58,19 @@ class CarCounterGUI:
         # Keybindings info label (replaces playback buttons)
         keybinds_text = (
             "Video Controls:\n"
-            "  Space: Play/Pause\n"
-            "  = / - : Speed Up / Down\n"
-            "  , / . : Prev / Next Frame\n"
-            "  ; / ': Skip -5s / +5s\n"
-            "  [ / ]: Skip -5min / +5min\n"
-            "  {{ / }}: Skip -1hr / +1hr\n"
+            "  Space  : Play/Pause\n"
+            "  = / -  : Speed Up / Down\n"
+            "  , / .  : Prev / Next Frame\n"
+            "  ; / '  : Skip -5s / +5s\n"
+            "  [ / ]  : Skip -5min / +5min\n"
+            "  { / }  : Skip -1hr / +1hr\n"
             "\nLog Controls:\n"
-            "  Backspace: Delete Last Entry\n"
-            "  Ctrl+Z / Ctrl+Y: Undo / Redo\n"
-            "  a-z: Log Key Event"
+            "  Backspace       : Delete Last Entry\n"
+            "  Ctrl+Z / Ctrl+Y : Undo / Redo\n"
+            "  Ctrl+f          : Search Log\n"
+            "  a-z             : Log Key Event\n"
         )
-        self.status_label = Label(controls_container, text=keybinds_text, anchor='w', justify='left', font=("TkDefaultFont", 10))
+        self.status_label = Label(controls_container, text=keybinds_text, anchor='w', justify='left', font=("Courier", 10))
         self.status_label.pack(side='top', pady=(8, 8), fill='x')
 
         log_btn_frame = Frame(controls_container)
@@ -82,7 +83,7 @@ class CarCounterGUI:
         # undo_frame.pack(fill='x', pady=1)
         # Button(undo_frame, text="Undo", command=lambda: self.logger.restore_last_undo(self) if self.logger else None).pack(side='left', expand=True, fill='x')
         # Button(undo_frame, text="Redo", command=lambda: self.logger.redo(self) if self.logger else None).pack(side='left', expand=True, fill='x')
-        Button(log_btn_frame, text="Search Log", command=self.prompt_search_log).pack(side='top', pady=2, fill='x')
+        # Button(log_btn_frame, text="Search Log", command=self.prompt_search_log).pack(side='top', pady=2, fill='x')
         # Button(log_btn_frame, text="Delete Entry", command=lambda: self.logger.undo(self) if self.logger else None).pack(side='bottom', pady=2, fill='x')
 
         Button(controls_container, text="Save and Quit", command=self.root.quit).pack(side='bottom', pady=16, fill='x')
@@ -93,6 +94,7 @@ class CarCounterGUI:
         self.root.resizable(False, False)
 
         # --- Keyboard Shortcuts ---
+        self.root.bind('<Control-f>', lambda e: self.prompt_search_log())
         self.root.bind('<space>', lambda e: self.toggle_play())
         self.root.bind('<KeyPress-equal>', lambda e: self.speed_up())
         self.root.bind('<KeyPress-minus>', lambda e: self.slow_down())
