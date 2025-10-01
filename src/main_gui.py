@@ -58,18 +58,19 @@ class CarCounterGUI:
 
         # Controls container (vertical stack of buttons and controls)
         controls_container = Frame(main_frame)
+        # Keep controls container to its natural size (do not expand); video_frame will take the extra space
         controls_container.pack(side=LEFT, fill=Y, padx=5, pady=10)
-        controls_container.pack(fill='y', expand=True)
 
         # --- Control Buttons ---
         self.open_btn = Button(controls_container, text="Open Video", command=self.open_video)
-        self.open_btn.pack(side='top', pady=(0, 16), fill='x')
+        # Pack without fill so the button uses minimal width
+        self.open_btn.pack(side='top', pady=(0, 16), anchor='w')
         # Frame rate entry. Used to calculate frame-by-frame stepping.
         fr_label = Label(controls_container, text="Frame Rate (fps):")
-        fr_label.pack(side='top', pady=(0, 2), fill='x')
+        fr_label.pack(side='top', pady=(0, 2), anchor='w')
         self.fps_var = StringVar(value="24")
         self.fps_entry = Entry(controls_container, textvariable=self.fps_var, width=8)
-        self.fps_entry.pack(side='top', pady=(0, 8), fill='x')
+        self.fps_entry.pack(side='top', pady=(0, 8), anchor='w')
 
         # Keybindings info label (replaces playback buttons)
         keybinds_text = (
@@ -90,18 +91,19 @@ class CarCounterGUI:
             "  y               : TPRS movement\n"
         )
 
-        self.status_label = Label(controls_container, text=keybinds_text, anchor='w', justify='left', font=("Courier", 10))
-        self.status_label.pack(side='top', pady=(8, 8), fill='x')
+        # Keep keybinds text compact by wrapping it and not forcing full-width expansion
+        self.status_label = Label(controls_container, text=keybinds_text, anchor='w', justify='left', font=("Courier", 10), wraplength=260)
+        self.status_label.pack(side='top', pady=(8, 8), anchor='w')
 
         # Separate label to display current playback speed (updates when speed changes)
         self.playback_speed_label = Label(controls_container, text=f"Speed: x{self.speed:.1f}", anchor='w', justify='left', font=("Courier", 10, 'bold'))
-        self.playback_speed_label.pack(side='top', pady=(2, 8), fill='x')
+        self.playback_speed_label.pack(side='top', pady=(2, 8), anchor='w')
 
         # Notes label and editable text field
         notes_label = Label(controls_container, text="Notes:")
         notes_label.pack(side='top', anchor='w', padx=2)
         self.notes_text = Text(controls_container, height=1, width=24, wrap='word')
-        self.notes_text.pack(side='top', fill='x', padx=2, pady=(0, 8))
+        self.notes_text.pack(side='top', padx=2, pady=(0, 8), anchor='w')
         # Pre-fill with a legend for classification and flags
         legend_text = (
             "- classification -\n"
@@ -125,7 +127,7 @@ class CarCounterGUI:
         _auto_resize_notes()
 
         log_btn_frame = Frame(controls_container)
-        log_btn_frame.pack(side='top', pady=(40, 16), fill='x')
+        log_btn_frame.pack(side='top', pady=(40, 16), anchor='w')
         # self.export_btn = Button(log_btn_frame, text="Export Log", command=lambda: self.logger.export_log(self) if self.logger else None)
         # self.export_btn.pack(side='top', pady=2, fill='x')
         # self.clear_btn = Button(log_btn_frame, text="Clear Log", command=lambda: self.logger.clear_log(self) if self.logger else None)
@@ -137,7 +139,7 @@ class CarCounterGUI:
         # Button(log_btn_frame, text="Search Log", command=self.prompt_search_log).pack(side='top', pady=2, fill='x')
         # Button(log_btn_frame, text="Delete Entry", command=lambda: self.logger.undo(self) if self.logger else None).pack(side='bottom', pady=2, fill='x')
 
-        Button(controls_container, text="Save and Quit", command=self.root.quit).pack(side='bottom', pady=16, fill='x')
+        Button(controls_container, text="Save and Quit", command=self.root.quit).pack(side='bottom', pady=16, anchor='s')
 
         self.root.update_idletasks()
         # allow resizing; set a reasonable minimum size
