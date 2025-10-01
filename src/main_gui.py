@@ -10,6 +10,13 @@ class CarCounterGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Car Counter")
+        # On Windows, initialize COM for audio output (prevents mmdevice errors)
+        if os.name == 'nt':
+            try:
+                import ctypes
+                ctypes.windll.ole32.CoInitialize(None)
+            except Exception:
+                pass
         self.paused = True
         self.speed = 1.0
         self.start_offset = timedelta()
@@ -26,12 +33,16 @@ class CarCounterGUI:
 
         # Log display (right side)
         log_frame = Frame(main_frame)
-        log_frame.pack(side=RIGHT, fill=Y, padx=10, pady=10)
-        self.log_text = Text(log_frame, width=20, height=25, state='disabled')
-        self.log_text.pack(side=LEFT, fill=Y)
-        scrollbar = Scrollbar(log_frame, command=self.log_text.yview)
-        scrollbar.pack(side=RIGHT, fill=Y)
-        self.log_text['yscrollcommand'] = scrollbar.set
+        log_frame.pack(side=RIGHT, fill=BOTH, padx=10, pady=10, expand=True)
+        # Allow horizontal scrolling and disable wrapping so headers show on one line
+        self.log_text = Text(log_frame, width=80, height=25, state='disabled', wrap='none')
+        self.log_text.pack(side=LEFT, fill=BOTH, expand=True)
+        v_scrollbar = Scrollbar(log_frame, command=self.log_text.yview)
+        v_scrollbar.pack(side=RIGHT, fill=Y)
+        self.log_text['yscrollcommand'] = v_scrollbar.set
+        h_scrollbar = Scrollbar(log_frame, command=self.log_text.xview, orient='horizontal')
+        h_scrollbar.pack(side='bottom', fill='x')
+        self.log_text['xscrollcommand'] = h_scrollbar.set
 
         # Video display (left side)
         self.frame_width = 640
@@ -74,6 +85,10 @@ class CarCounterGUI:
         self.status_label = Label(controls_container, text=keybinds_text, anchor='w', justify='left', font=("Courier", 10))
         self.status_label.pack(side='top', pady=(8, 8), fill='x')
 
+        # Separate label to display current playback speed (updates when speed changes)
+        self.playback_speed_label = Label(controls_container, text=f"Speed: x{self.speed:.1f}", anchor='w', justify='left', font=("Courier", 10, 'bold'))
+        self.playback_speed_label.pack(side='top', pady=(2, 8), fill='x')
+
         # Notes label and editable text field
         notes_label = Label(controls_container, text="Notes:")
         notes_label.pack(side='top', anchor='w', padx=2)
@@ -91,7 +106,7 @@ class CarCounterGUI:
             "f : brake lights on after TPRS\n"
             "b : erratic behavior"
         )
-        self.notes_text.insert('1.0', legend_text)
+ #       self.notes_text.insert('1.0', legend_text)
 
         def _auto_resize_notes(event=None):
             lines = int(self.notes_text.index('end-1c').split('.')[0])
@@ -117,9 +132,12 @@ class CarCounterGUI:
         Button(controls_container, text="Save and Quit", command=self.root.quit).pack(side='bottom', pady=16, fill='x')
 
         self.root.update_idletasks()
-        self.root.minsize(self.root.winfo_width(), self.root.winfo_height())
-        self.root.maxsize(self.root.winfo_width(), self.root.winfo_height())
-        self.root.resizable(False, False)
+        # allow resizing; set a reasonable minimum size
+        try:
+            self.root.minsize(800, 480)
+        except Exception:
+            pass
+        self.root.resizable(True, True)
 
         # --- Keyboard Shortcuts ---
         self.root.bind('<Control-f>', lambda e: self.prompt_search_log())
@@ -135,6 +153,16 @@ class CarCounterGUI:
         self.root.bind('{', lambda e: self.skip_seconds(-3600))
         self.root.bind('}', lambda e: self.skip_seconds(3600))
         self.root.bind('<Escape>', lambda e: self.root.quit())
+
+        # --- Global key bindings for logging and undo/redo (use bind_all so keys are captured regardless of focus)
+        for char in 'jkldbfy':
+            self.root.bind_all(f'<KeyPress-{char}>', self.log_key_event)
+            self.root.bind_all(f'<KeyPress-{char.upper()}>', self.log_key_event)
+        for digit in '0123456789':
+            self.root.bind_all(f'<KeyPress-{digit}>', self.log_key_event)
+        self.root.bind_all('<BackSpace>', lambda e: self.logger.undo(self) if self.logger else None)
+        self.root.bind_all('<Control-z>', lambda e: self.logger.restore_last_undo(self) if self.logger else None)
+        self.root.bind_all('<Control-y>', lambda e: self.logger.redo(self) if self.logger else None)
         
     def next_frame(self):
         """
@@ -163,13 +191,7 @@ class CarCounterGUI:
         self.player.set_time(seek_ms)
         self.player.next_frame()
         self.paused = True
-        self.root.bind('<BackSpace>', lambda e: self.logger.undo(self) if self.logger else None)
-        self.root.bind('<Control-z>', lambda e: self.logger.restore_last_undo(self) if self.logger else None)
-        self.root.bind('<Control-y>', lambda e: self.logger.redo(self) if self.logger else None)
         self.log_text.bind('<Button-1>', self.on_log_click)
-        for char in 'abcdefghijklmnopqrstuvwxyz':
-            self.root.bind(f'<KeyPress-{char}>', self.log_key_event)
-            self.root.bind(f'<KeyPress-{char.upper()}>', self.log_key_event)
 
 ## GUI Functions ##########################################################
 
@@ -204,6 +226,11 @@ class CarCounterGUI:
             offset = self.parse_start_time(start_time_str) if start_time_str else None
             self.start_offset = offset if offset is not None else timedelta()
             self.status_label.config(text=f"x{self.speed:.1f}")
+            # also update playback speed label
+            try:
+                self.playback_speed_label.config(text=f"Speed: x{self.speed:.1f}")
+            except Exception:
+                pass
             # Start playback to force video output, then pause if needed
             self.player.play()
             self.root.after(200, self.player.pause)
@@ -276,20 +303,25 @@ class CarCounterGUI:
         and highlights the new entry.
         """
         key = event.char
-        if not key.isalpha():
+        if not key:
             return
         ms = self.player.get_time() if self.player else 0
         timestamp_str = self.format_timestamp(ms, self.start_offset)
         if self.logger:
+            # Logger expects key then timestamp order in previous implementation; new CSVLogger.signature is (key, timestamp)
+            # Our CSVLogger will place the letter in its column or the digit into numbers column
             self.logger.log_entry(key, timestamp_str)
             self.logger.sort_log_file()
             highlight_line = None
             try:
-                with open(self.logger.filename, 'r') as f:
-                    lines = [line for line in f if line.strip()]
-                for idx, line in enumerate(lines, 1):
-                    parts = line.strip().split(',')
-                    if len(parts) >= 2 and parts[0].strip() == timestamp_str and parts[1].strip() == key:
+                header, rows = self.logger._read_header_and_rows()
+                for idx, row in enumerate(rows, 1):
+                    parts = [p.strip() for p in row.split(',')]
+                    if not parts:
+                        continue
+                    ts = parts[0]
+                    if ts == timestamp_str:
+                        # highlight the first matching timestamp
                         highlight_line = idx
                         break
             except Exception:
@@ -310,14 +342,16 @@ class CarCounterGUI:
             return
         self.speed = min(self.speed + 0.25, 4.0)
         self.player.set_rate(self.speed)
-        self.status_label.config(text=f"x{self.speed:.1f}")
+        # update the separate playback speed label
+        self.playback_speed_label.config(text=f"Speed: x{self.speed:.1f}")
 
     def slow_down(self):
         if not self.player:
             return
         self.speed = max(self.speed - 0.25, 0.25)
         self.player.set_rate(self.speed)
-        self.status_label.config(text=f"x{self.speed:.1f}")
+        # update the separate playback speed label
+        self.playback_speed_label.config(text=f"Speed: x{self.speed:.1f}")
 
     def skip_seconds(self, seconds):
         if not self.player:
@@ -384,3 +418,5 @@ if __name__ == "__main__":
     root = Tk()
     app = CarCounterGUI(root)
     root.mainloop()
+
+    

@@ -1,39 +1,130 @@
 class CSVLogger:
-    def __init__(self, filename):
+    # New column layout per user request
+    DEFAULT_COLUMNS = ["timestamp", "class", "Brake", "avoidance", "displacement", "state"]
+
+    def __init__(self, filename, columns=None):
         self.filename = filename
+        self.columns = columns or list(self.DEFAULT_COLUMNS)
+        # Ensure file exists with header
+        try:
+            import os
+            if not os.path.exists(self.filename):
+                with open(self.filename, 'w') as f:
+                    f.write(','.join(self.columns) + '\n')
+        except Exception:
+            pass
 
     def log_entry(self, key, timestamp):
         """
         Append a new log entry with the given key and timestamp to the CSV file.
+        The CSV has a column for each of the tracked letters and a single 'numbers' column.
+        Only recognized keys will be recorded; others are ignored.
         """
-        with open(self.filename, 'a') as file:
-            file.write(f"{timestamp}, {key}\n")
+        try:
+            header, rows = self._read_header_and_rows()
+            rows = rows or []
+
+            # mapping of input keys to columns
+            key_map = {
+                'j': 'class', 'k': 'class', 'l': 'class',
+                'd': 'Brake', 'f': 'Brake',
+                'b': 'avoidance',
+                'y': 'displacement'
+            }
+
+            # find existing row with same timestamp
+            found = False
+            for i, row in enumerate(rows):
+                parts = [p for p in row.split(',')]
+                if not parts:
+                    continue
+                existing_ts = parts[0].strip()
+                if existing_ts == timestamp:
+                    found = True
+                    while len(parts) < len(self.columns):
+                        parts.append('')
+                    if key.isdigit():
+                        parts[self.columns.index('state')] = key
+                    else:
+                        k = key.lower()
+                        if k in key_map:
+                            col = key_map[k]
+                            idx = self.columns.index(col)
+                            cur = parts[idx].strip()
+                            # toggle: if same letter present, remove it; otherwise set to new letter
+                            if cur == k:
+                                parts[idx] = ''
+                            else:
+                                parts[idx] = k
+                    rows[i] = ','.join([p for p in parts])
+                    break
+
+            if not found:
+                row = {col: '' for col in self.columns}
+                row['timestamp'] = timestamp
+                if key.isdigit():
+                    row['state'] = key
+                else:
+                    k = key.lower()
+                    if k in key_map:
+                        col = key_map[k]
+                        row[col] = k
+                    else:
+                        return
+                values = [row.get(col, '') for col in self.columns]
+                rows.append(','.join(values))
+
+            # write back header + rows
+            with open(self.filename, 'w') as f:
+                if header:
+                    f.write(header + '\n')
+                else:
+                    f.write(','.join(self.columns) + '\n')
+                for r in rows:
+                    f.write(r + '\n')
+        except Exception:
+            pass
+
+    def _read_header_and_rows(self):
+        import os
+        if not os.path.exists(self.filename):
+            return None, []
+        with open(self.filename, 'r') as f:
+            lines = [line.rstrip('\n') for line in f if line.strip()]
+        if not lines:
+            return None, []
+        header = lines[0]
+        rows = lines[1:]
+        return header, rows
 
     def sort_log_file(self):
         """
-        Sort the log file entries by timestamp in ascending order.
+        Sort the CSV data rows by timestamp (first column) while preserving the header.
         """
         import re
         try:
-            with open(self.filename, 'r') as f:
-                lines = [line for line in f if line.strip()]
-            def parse_ts(line):
-                if ',' in line:
-                    ts = line.split(',')[0].strip()
-                elif ':' in line:
-                    ts = line.split(':', 1)[1].strip()
-                else:
+            header, rows = self._read_header_and_rows()
+            def parse_ts(row):
+                parts = row.split(',')
+                if not parts:
                     return float('inf')
-                parts = re.split(r'[:]', ts)
+                ts = parts[0].strip()
+                # Timestamp format: HH:MM:SS:ms or similar
+                parts_ts = re.split(r'[:]', ts)
                 try:
-                    h, m, s = int(parts[0]), int(parts[1]), int(parts[2])
-                    ms = int(parts[3]) if len(parts) > 3 else 0
+                    h = int(parts_ts[0])
+                    m = int(parts_ts[1])
+                    s = int(parts_ts[2])
+                    ms = int(parts_ts[3]) if len(parts_ts) > 3 else 0
                     return h * 3600 + m * 60 + s + ms / 1000.0
                 except Exception:
                     return float('inf')
-            lines.sort(key=parse_ts)
+            rows.sort(key=parse_ts)
             with open(self.filename, 'w') as f:
-                f.writelines(lines)
+                if header:
+                    f.write(header + '\n')
+                for r in rows:
+                    f.write(r + '\n')
         except Exception:
             pass
 
@@ -72,8 +163,9 @@ class CSVLogger:
         confirm = messagebox.askyesno("Clear Log", "Are you sure you want to clear the log? This cannot be undone.")
         if confirm:
             try:
+                # reset file to header only
                 with open(self.filename, 'w') as f:
-                    f.write("")
+                    f.write(','.join(self.columns) + '\n')
                 gui.update_log_display()
             except Exception:
                 pass
@@ -84,36 +176,44 @@ class CSVLogger:
         """
         highlight_next = None
         try:
+            header, rows = self._read_header_and_rows()
+            # rows correspond to GUI lines (we display rows without header)
+            if not rows:
+                gui.update_log_display(highlight_line=None)
+                return
             ranges = gui.log_text.tag_ranges('highlight')
             if ranges:
                 start = ranges[0]
                 line_number = int(str(start).split('.')[0])
-                with open(self.filename, 'r') as f:
-                    lines = [line for line in f if line.strip()]
-                if 1 <= line_number <= len(lines):
-                    removed_entry = lines[line_number - 1]
+                if 1 <= line_number <= len(rows):
+                    removed_entry = rows.pop(line_number - 1)
                     removed_index = line_number - 1
-                    gui.undo_stack.append((removed_entry, removed_index))
+                    gui.undo_stack.append((removed_entry + '\n', removed_index))
                     gui.redo_stack.clear()
-                    del lines[line_number - 1]
+                    # write back header + rows
                     with open(self.filename, 'w') as f:
-                        f.writelines(lines)
+                        if header:
+                            f.write(header + '\n')
+                        for r in rows:
+                            f.write(r + '\n')
                     self.sort_log_file()
                     if line_number > 1:
                         highlight_next = line_number - 1
-                    elif lines:
+                    elif rows:
                         highlight_next = 1
                     else:
                         highlight_next = None
             else:
-                with open(self.filename, 'r') as f:
-                    lines = [line for line in f if line.strip()]
-                if lines:
-                    removed_entry = lines[-1]
-                    removed_index = len(lines) - 1
-                    gui.undo_stack.append((removed_entry, removed_index))
-                    gui.redo_stack.clear()
-                self.undo_last_entry()
+                # remove last data row
+                removed_entry = rows.pop(-1)
+                removed_index = len(rows)
+                gui.undo_stack.append((removed_entry + '\n', removed_index))
+                gui.redo_stack.clear()
+                with open(self.filename, 'w') as f:
+                    if header:
+                        f.write(header + '\n')
+                    for r in rows:
+                        f.write(r + '\n')
                 self.sort_log_file()
         except Exception:
             pass
@@ -127,21 +227,24 @@ class CSVLogger:
         if gui.undo_stack:
             try:
                 entry, index = gui.undo_stack.pop()
-                with open(self.filename, 'r') as f:
-                    lines = [line for line in f if line.strip()]
-                insert_at = min(index, len(lines))
-                lines.insert(insert_at, entry)
+                # entry contains trailing newline from undo stack
+                entry = entry.rstrip('\n')
+                header, rows = self._read_header_and_rows()
+                insert_at = min(index, len(rows))
+                rows.insert(insert_at, entry)
                 with open(self.filename, 'w') as f:
-                    f.writelines(lines)
+                    if header:
+                        f.write(header + '\n')
+                    for r in rows:
+                        f.write(r + '\n')
                 self.sort_log_file()
-                with open(self.filename, 'r') as f:
-                    sorted_lines = [line for line in f if line.strip()]
+                # find highlight line in data rows
                 highlight_line = None
-                for idx, line in enumerate(sorted_lines, 1):
+                for idx, line in enumerate(rows, 1):
                     if line.strip() == entry.strip():
                         highlight_line = idx
                         break
-                gui.redo_stack.append((entry, index))
+                gui.redo_stack.append((entry + '\n', index))
                 gui.update_log_display(highlight_line=highlight_line)
             except Exception:
                 pass
@@ -153,16 +256,19 @@ class CSVLogger:
         if gui.redo_stack:
             try:
                 entry, index = gui.redo_stack.pop()
-                with open(self.filename, 'r') as f:
-                    lines = [line for line in f if line.strip()]
-                for i, line in enumerate(lines):
+                entry = entry.rstrip('\n')
+                header, rows = self._read_header_and_rows()
+                for i, line in enumerate(rows):
                     if line.strip() == entry.strip():
-                        del lines[i]
+                        del rows[i]
                         break
                 with open(self.filename, 'w') as f:
-                    f.writelines(lines)
+                    if header:
+                        f.write(header + '\n')
+                    for r in rows:
+                        f.write(r + '\n')
                 self.sort_log_file()
-                gui.undo_stack.append((entry, index))
+                gui.undo_stack.append((entry + '\n', index))
                 highlight_line = index if index > 0 else 1
                 gui.update_log_display(highlight_line=highlight_line)
             except Exception:
@@ -172,14 +278,15 @@ class CSVLogger:
         """
         Highlight all log entries containing the search_term (case-insensitive) in the GUI log display.
         """
+        import os
         if not os.path.exists(self.filename):
             print("No log file found.")
             return
         highlight_lines = []
-        with open(self.filename, 'r') as f:
-            for idx, line in enumerate(f, 1):
-                if search_term.lower() in line.lower():
-                    highlight_lines.append(idx)
+        header, rows = self._read_header_and_rows()
+        for idx, line in enumerate(rows, 1):
+            if search_term.lower() in line.lower():
+                highlight_lines.append(idx)
         gui.update_log_display(highlight_lines=highlight_lines)
         if not highlight_lines:
             print(f"No entries found containing: {search_term}")
