@@ -1,6 +1,6 @@
 class CSVLogger:
     # New column layout per user request
-    DEFAULT_COLUMNS = ["timestamp", "class", "Brake", "avoidance", "displacement", "state"]
+    DEFAULT_COLUMNS = ["timestamp", "class", "brake", "avoidance", "displacement", "state"]
 
     def __init__(self, filename, columns=None):
         self.filename = filename
@@ -27,7 +27,7 @@ class CSVLogger:
             # mapping of input keys to columns
             key_map = {
                 'j': 'class', 'k': 'class', 'l': 'class',
-                'd': 'Brake', 'f': 'Brake',
+                'd': 'brake', 'f': 'brake',
                 'b': 'avoidance',
                 'y': 'displacement'
             }

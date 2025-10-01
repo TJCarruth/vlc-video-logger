@@ -33,23 +33,28 @@ class CarCounterGUI:
 
         # Log display (right side)
         log_frame = Frame(main_frame)
-        log_frame.pack(side=RIGHT, fill=BOTH, padx=10, pady=10, expand=True)
+        # Keep log_frame a fixed-width column on the right so headers fit on one line;
+        # video_frame will expand when the main window is resized.
+        log_frame.pack(side=RIGHT, fill=Y, padx=10, pady=10)
         # Allow horizontal scrolling and disable wrapping so headers show on one line
         self.log_text = Text(log_frame, width=80, height=25, state='disabled', wrap='none')
-        self.log_text.pack(side=LEFT, fill=BOTH, expand=True)
+        self.log_text.pack(side=LEFT, fill=Y)
         v_scrollbar = Scrollbar(log_frame, command=self.log_text.yview)
         v_scrollbar.pack(side=RIGHT, fill=Y)
         self.log_text['yscrollcommand'] = v_scrollbar.set
         h_scrollbar = Scrollbar(log_frame, command=self.log_text.xview, orient='horizontal')
         h_scrollbar.pack(side='bottom', fill='x')
         self.log_text['xscrollcommand'] = h_scrollbar.set
+        # bind click handler so clicking entries selects and seeks
+        self.log_text.bind('<Button-1>', self.on_log_click)
 
         # Video display (left side)
         self.frame_width = 640
         self.frame_height = 480
         self.video_frame = Frame(main_frame, bg='black', width=self.frame_width, height=self.frame_height)
         self.video_frame.pack_propagate(False)
-        self.video_frame.pack(side=LEFT, padx=10, pady=10)
+        # Let the video_frame take available space when window is resized
+        self.video_frame.pack(side=LEFT, fill=BOTH, expand=True, padx=10, pady=10)
 
         # Controls container (vertical stack of buttons and controls)
         controls_container = Frame(main_frame)
@@ -79,7 +84,10 @@ class CarCounterGUI:
             "  Backspace       : Delete Last Entry\n"
             "  Ctrl+Z / Ctrl+Y : Undo / Redo\n"
             "  Ctrl+f          : Search Log\n"
-            "  a-z             : Log Key Event\n"
+            "  jkl             : passenger, truck, motorcycle\n"
+            "  d, f            : brake before/after TPRS\n"
+            "  b               : erratic behavior\n"
+            "  y               : TPRS movement\n"
         )
 
         self.status_label = Label(controls_container, text=keybinds_text, anchor='w', justify='left', font=("Courier", 10))
@@ -99,7 +107,7 @@ class CarCounterGUI:
             "- classification -\n"
             "j : passenger vehicle\n"
             "k : large truck\n"
-            "y : TPRS movement\n"
+            "l : motorcycles\n"
             "\n"
             "- flags -\n"
             "d : brake lights on before TPRS\n"
@@ -225,8 +233,7 @@ class CarCounterGUI:
             start_time_str = simpledialog.askstring("Start Time", prompt, initialvalue="00:00:00", parent=self.root)
             offset = self.parse_start_time(start_time_str) if start_time_str else None
             self.start_offset = offset if offset is not None else timedelta()
-            self.status_label.config(text=f"x{self.speed:.1f}")
-            # also update playback speed label
+            # update only the playback speed label (do not overwrite legend/status text)
             try:
                 self.playback_speed_label.config(text=f"Speed: x{self.speed:.1f}")
             except Exception:
@@ -239,30 +246,55 @@ class CarCounterGUI:
         """
         Updates the log display area with the contents of the log file. Optionally highlights a specific line or lines.
         """
+        # Read CSV rows (skip header) and filter out invalid/placeholder rows
+        displayed_rows = []
         if self.logger:
             try:
-                with open(self.logger.filename, 'r') as f:
-                    log_content = f.read()
+                header, rows = self.logger._read_header_and_rows()
+                for r in rows:
+                    # skip rows with negative or placeholder timestamps like '-1:59:59:999'
+                    parts = r.split(',')
+                    if not parts:
+                        continue
+                    ts = parts[0].strip()
+                    if ts.startswith('-'):
+                        continue
+                    displayed_rows.append(r)
             except Exception:
-                log_content = "No log file found."
+                displayed_rows = []
+
+        # Build content from displayed rows only (no header)
+        if displayed_rows:
+            content = '\n'.join(displayed_rows)
         else:
-            log_content = "No log file found."
+            content = ''
+
+        # adjust width to fit first data row; shrink height to show a single data row
+        try:
+            first_line = displayed_rows[0] if displayed_rows else ''
+            needed_chars = max(40, len(first_line) + 2)
+            needed_chars = min(160, needed_chars)
+            self.log_text.config(width=needed_chars, height=1)
+        except Exception:
+            pass
+
         self.log_text.config(state='normal')
         self.log_text.delete(1.0, 'end')
-        self.log_text.insert('end', log_content)
-        lines = log_content.splitlines()
+        if content:
+            self.log_text.insert('end', content)
         self.log_text.tag_remove('highlight', '1.0', 'end')
-        # If highlight_lines is provided, highlight all those lines
+
+        # If highlight_lines is provided, highlight those data rows (display lines equal data indices)
         if highlight_lines:
             for line_num in highlight_lines:
                 self.log_text.tag_add('highlight', f'{line_num}.0', f'{line_num}.end')
             self.log_text.tag_configure('highlight', background='yellow')
             self.log_text.see(f'{highlight_lines[0]}.0')
-        # Otherwise, if highlight_line is provided, highlight that single line
         elif highlight_line is not None:
             self.log_text.tag_add('highlight', f'{highlight_line}.0', f'{highlight_line}.end')
             self.log_text.tag_configure('highlight', background='yellow')
             self.log_text.see(f'{highlight_line}.0')
+
         self.log_text.config(state='disabled')
 
     def on_log_click(self, event):
@@ -272,9 +304,14 @@ class CarCounterGUI:
         self.log_text.tag_remove('highlight', '1.0', 'end')
         index = self.log_text.index(f'@{event.x},{event.y}')
         line_number = int(index.split('.')[0])
-        self.log_text.tag_add('highlight', f'{line_number}.0', f'{line_number}.end')
+        # Since the viewer shows only data rows (no header) and each displayed row maps to
+        # a data row index starting at 1, the clicked line_number directly corresponds to data row.
+        data_row = line_number
+        if data_row < 1:
+            return
+        self.log_text.tag_add('highlight', f'{data_row}.0', f'{data_row}.end')
         self.log_text.tag_configure('highlight', background='yellow')
-        line_content = self.log_text.get(f'{line_number}.0', f'{line_number}.end').strip()
+        line_content = self.log_text.get(f'{data_row}.0', f'{data_row}.end').strip()
         if ',' in line_content:
             timestamp_str = line_content.split(',')[0].strip()
         elif ':' in line_content:

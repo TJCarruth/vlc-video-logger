@@ -1,7 +1,15 @@
 import os
+import sys
 import tempfile
 import unittest
+
+# ensure the 'src' directory is on sys.path so tests can import csv_logger
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
 from csv_logger import CSVLogger
+
 
 class TestCSVLogger(unittest.TestCase):
     def setUp(self):
@@ -18,7 +26,7 @@ class TestCSVLogger(unittest.TestCase):
             header = f.readline().strip()
         self.assertIn('timestamp', header)
         self.assertIn('class', header)
-        self.assertIn('Brake', header)
+        self.assertIn('brake', header)
         self.assertIn('state', header)
 
     def test_single_key_log(self):
@@ -67,6 +75,7 @@ class TestCSVLogger(unittest.TestCase):
         self.assertEqual(len(lines), 3)
         # after sorting, the earlier timestamp should be on line 1 of data (index 1)
         self.assertTrue(lines[1].startswith('00:00:01:000'))
+
 
 if __name__ == '__main__':
     unittest.main()
