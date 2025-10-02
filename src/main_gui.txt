@@ -96,7 +96,7 @@ class CarCounterGUI:
             "  0-9             : TPRS status\n"
             "\nOverlay Controls:\n"
             "  w               : Toggle\n"
-            "  e               : Dec Opacity\n"
+            "  e /             : Dec Opacity\n"
             "  r               : Inc Opacity\n"
         )
 
