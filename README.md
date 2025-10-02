@@ -46,7 +46,7 @@ To distribute the application as a single executable file, you can use [PyInstal
 2. **Build the executable:**
    Run this command from the project root:
    ```
-   pyinstaller --onefile --noconsole --add-data "src;src" src/main.py
+   pyinstaller --onefile --noconsole --add-data "src;src" src/main_gui.py
    ```
    - `--onefile`: Creates a single executable file.
    - `--noconsole`: Hides the console window (for GUI apps).
