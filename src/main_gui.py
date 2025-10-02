@@ -1,6 +1,6 @@
 import os
 import threading
-from tkinter import Tk, Button, Label, Entry, filedialog, StringVar, Frame, Text, Scrollbar, RIGHT, Y, LEFT, BOTH, simpledialog, messagebox, Toplevel
+from tkinter import Tk, Button, Label, Entry, filedialog, StringVar, Frame, Text, Scrollbar, RIGHT, Y, LEFT, BOTH, simpledialog, messagebox, Toplevel, Canvas
 import vlc
 from csv_logger import CSVLogger
 from datetime import timedelta
@@ -55,6 +55,38 @@ class CarCounterGUI:
         self.video_frame.pack_propagate(False)
         # Let the video_frame take available space when window is resized
         self.video_frame.pack(side=LEFT, fill=BOTH, expand=True, padx=10, pady=10)
+
+         # --- Overlay Canvas (on top of video_frame) ---
+        # Canvas used to draw a transformable PNG overlay. It is a child of video_frame
+        # so it shares geometry and can be resized with the video display.
+        self.overlay_canvas = Canvas(self.video_frame, bg='', highlightthickness=0)
+        self.overlay_canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self.overlay_canvas.lower()  # keep it below until we explicitly lift it (player may draw on hwnd)
+
+        # Overlay state
+        self.overlay_img_path = os.path.join(os.path.dirname(__file__), 'TPRS-dsplacement_evaluator.png')
+        self.overlay_orig = None   # original PIL Image (RGBA)
+        self.overlay_tk = None     # PhotoImage used by Canvas
+        self.overlay_visible = False
+        self.overlay_opacity = 0.5  # default opacity (0.0..1.0)
+
+        # Corner control points in canvas coordinates: list of (x,y) tuples, clockwise
+        self.overlay_corners = None
+        self._dragging_corner = None
+        self._corner_radius = 8
+
+        # Mouse bindings for dragging corners
+        self.overlay_canvas.bind('<ButtonPress-1>', self._on_canvas_button_press)
+        self.overlay_canvas.bind('<B1-Motion>', self._on_canvas_motion)
+        self.overlay_canvas.bind('<ButtonRelease-1>', self._on_canvas_button_release)
+
+        # Key bindings for overlay control: w toggle, e increase opacity, r decrease opacity
+        self.root.bind('w', lambda e: self._toggle_overlay())
+        self.root.bind('e', lambda e: self._change_opacity(0.1))
+        self.root.bind('r', lambda e: self._change_opacity(-0.1))
+
+        # Load the overlay image if it exists
+        self._load_overlay_image()
 
         # Controls container (vertical stack of buttons and controls)
         controls_container = Frame(main_frame)
@@ -202,6 +234,154 @@ class CarCounterGUI:
         self.player.next_frame()
         self.paused = True
         self.log_text.bind('<Button-1>', self.on_log_click)
+
+   # ---------------- Overlay helper methods ----------------
+    def _load_overlay_image(self):
+        """Load the PNG overlay into memory (PIL Image) if available and initialize corners."""
+        try:
+            if not os.path.exists(self.overlay_img_path):
+                return
+            img = Image.open(self.overlay_img_path).convert('RGBA')
+            self.overlay_orig = img
+            # default corners: image placed to cover the video frame
+            w, h = self.overlay_canvas.winfo_width() or self.frame_width, self.overlay_canvas.winfo_height() or self.frame_height
+            self.overlay_corners = [(0, 0), (w, 0), (w, h), (0, h)]
+            self._render_overlay()
+        except Exception:
+            self.overlay_orig = None
+
+    def _render_overlay(self):
+        """Render the overlay image onto the canvas using current corners and opacity."""
+        try:
+            if not self.overlay_orig or not self.overlay_corners:
+                return
+            # Compute a quadrilateral transform: map original image corners to overlay_corners
+            src_w, src_h = self.overlay_orig.size
+            src_quad = [(0, 0), (src_w, 0), (src_w, src_h), (0, src_h)]
+            dst_quad = self.overlay_corners
+            # Use PIL to perform a perspective transform. Build the transform matrix.
+            coeffs = self._find_perspective_coeffs(src_quad, dst_quad)
+            transformed = self.overlay_orig.transform(
+                (int(max(x for x, y in dst_quad)), int(max(y for x, y in dst_quad))),
+                Image.PERSPECTIVE,
+                coeffs,
+                Image.BICUBIC,
+            )
+            # Apply opacity
+            if 0.0 <= self.overlay_opacity < 1.0:
+                alpha = transformed.split()[3].point(lambda p: int(p * self.overlay_opacity))
+                transformed.putalpha(alpha)
+
+            # Convert to PhotoImage and draw
+            self.overlay_tk = ImageTk.PhotoImage(transformed)
+            # clear previous overlay items
+            self.overlay_canvas.delete('overlay_image')
+            self.overlay_canvas.create_image(0, 0, image=self.overlay_tk, anchor='nw', tags='overlay_image')
+            # draw corner handles
+            self.overlay_canvas.delete('overlay_handles')
+            for idx, (cx, cy) in enumerate(self.overlay_corners):
+                self.overlay_canvas.create_oval(cx - self._corner_radius, cy - self._corner_radius,
+                                               cx + self._corner_radius, cy + self._corner_radius,
+                                               fill='red', outline='black', tags=('overlay_handles', f'corner_{idx}'))
+            if self.overlay_visible:
+                self.overlay_canvas.lift('overlay_image')
+                self.overlay_canvas.lift('overlay_handles')
+            else:
+                self.overlay_canvas.lower('overlay_image')
+                self.overlay_canvas.lower('overlay_handles')
+        except Exception:
+            pass
+
+    def _toggle_overlay(self):
+        self.overlay_visible = not self.overlay_visible
+        if self.overlay_visible:
+            self.overlay_canvas.lift('overlay_image')
+            self.overlay_canvas.lift('overlay_handles')
+        else:
+            self.overlay_canvas.lower('overlay_image')
+            self.overlay_canvas.lower('overlay_handles')
+
+    def _change_opacity(self, delta):
+        try:
+            self.overlay_opacity = min(1.0, max(0.0, self.overlay_opacity + float(delta)))
+            self._render_overlay()
+        except Exception:
+            pass
+
+    def _on_canvas_button_press(self, event):
+        """Begin dragging a corner if the click is near one."""
+        if not self.overlay_corners:
+            return
+        x, y = event.x, event.y
+        for idx, (cx, cy) in enumerate(self.overlay_corners):
+            if (x - cx) ** 2 + (y - cy) ** 2 <= (self._corner_radius * 2) ** 2:
+                self._dragging_corner = idx
+                return
+
+    def _on_canvas_motion(self, event):
+        """Handle dragging motion: move the active corner and re-render."""
+        if self._dragging_corner is None:
+            return
+        idx = self._dragging_corner
+        # clamp to canvas size
+        w = self.overlay_canvas.winfo_width()
+        h = self.overlay_canvas.winfo_height()
+        nx = min(max(0, event.x), w)
+        ny = min(max(0, event.y), h)
+        self.overlay_corners[idx] = (nx, ny)
+        self._render_overlay()
+
+    def _on_canvas_button_release(self, event):
+        self._dragging_corner = None
+
+    def _find_perspective_coeffs(self, src_pts, dst_pts):
+        """Compute perspective transform coefficients for PIL.transform.
+        src_pts and dst_pts are lists of four (x,y) tuples.
+        Returns a 8-tuple of coefficients.
+        """
+        try:
+            # Solve linear system A * coeffs = B
+            matrix = []
+            bx = []
+            for (x_src, y_src), (x_dst, y_dst) in zip(src_pts, dst_pts):
+                matrix.append([x_src, y_src, 1, 0, 0, 0, -x_dst * x_src, -x_dst * y_src])
+                bx.append(x_dst)
+                matrix.append([0, 0, 0, x_src, y_src, 1, -y_dst * x_src, -y_dst * y_src])
+                bx.append(y_dst)
+            # Solve by Gaussian elimination (8x8)
+            # Convert to float
+            M = [list(map(float, row)) for row in matrix]
+            B = list(map(float, bx))
+            # Simple Gaussian elimination
+            n = 8
+            for i in range(n):
+                # find pivot
+                pivot = i
+                for r in range(i, n):
+                    if abs(M[r][i]) > abs(M[pivot][i]):
+                        pivot = r
+                if abs(M[pivot][i]) < 1e-12:
+                    continue
+                if pivot != i:
+                    M[i], M[pivot] = M[pivot], M[i]
+                    B[i], B[pivot] = B[pivot], B[i]
+                # normalize
+                div = M[i][i]
+                M[i] = [mij / div for mij in M[i]]
+                B[i] = B[i] / div
+                for r in range(n):
+                    if r == i:
+                        continue
+                    factor = M[r][i]
+                    if abs(factor) < 1e-15:
+                        continue
+                    M[r] = [M[r][c] - factor * M[i][c] for c in range(n)]
+                    B[r] = B[r] - factor * B[i]
+            return tuple(B)
+        except Exception:
+            # fallback: identity
+            return (1, 0, 0, 0, 1, 0, 0, 0)
+
 
 ## GUI Functions ##########################################################
 
