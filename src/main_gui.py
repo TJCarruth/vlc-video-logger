@@ -19,7 +19,9 @@ class CarCounterGUI:
             except Exception:
                 pass
         self.paused = True
-        self.speed = 1.0
+        self.speed_levels = [1, 5, 10]
+        self.speed_index = 0
+        self.speed = self.speed_levels[self.speed_index]
         self.start_offset = timedelta()
         self.logger = None
         self.video_path = ""
@@ -106,7 +108,7 @@ class CarCounterGUI:
         self.status_label.pack(side='top', pady=(8, 8), anchor='w')
 
         # Separate label to display current playback speed (updates when speed changes)
-        self.playback_speed_label = Label(controls_container, text=f"Speed: x{self.speed:.1f}", anchor='w', justify='left', font=("Courier", 10, 'bold'))
+        self.playback_speed_label = Label(controls_container, text=f"Speed: {self.speed:.1f}x", anchor='w', justify='left', font=("Courier", 10, 'bold'))
         self.playback_speed_label.pack(side='top', pady=(2, 8), anchor='w')
 
         log_btn_frame = Frame(controls_container)
@@ -232,7 +234,7 @@ class CarCounterGUI:
             self.start_offset = offset if offset is not None else timedelta()
             # update only the playback speed label (do not overwrite legend/status text)
             try:
-                self.playback_speed_label.config(text=f"Speed: x{self.speed:.1f}")
+                self.playback_speed_label.config(text=f"Speed: {self.speed:.1f}x")
             except Exception:
                 pass
             # Start playback to force video output, then pause if needed
@@ -379,22 +381,29 @@ class CarCounterGUI:
         else:
             self.player.play()
             self.paused = False
+            # reset speed to normal when resuming playback, there were issues otherwise
+            self.speed = 1.0
+            self.player.set_rate(self.speed)
+            # update the separate playback speed label
+            self.playback_speed_label.config(text=f"Speed: {self.speed:.1f}x")
 
     def speed_up(self):
         if not self.player:
             return
-        self.speed = min(self.speed + 0.25, 4.0)
+        self.speed_index = min(self.speed_index + 1, len(self.speed_levels) - 1)
+        self.speed = self.speed_levels[self.speed_index]
         self.player.set_rate(self.speed)
         # update the separate playback speed label
-        self.playback_speed_label.config(text=f"Speed: x{self.speed:.1f}")
+        self.playback_speed_label.config(text=f"Speed: {self.speed:.1f}x")
 
     def slow_down(self):
         if not self.player:
             return
-        self.speed = max(self.speed - 0.25, 0.25)
+        self.speed_index = max(self.speed_index - 1, 0)
+        self.speed = self.speed_levels[self.speed_index]
         self.player.set_rate(self.speed)
         # update the separate playback speed label
-        self.playback_speed_label.config(text=f"Speed: x{self.speed:.1f}")
+        self.playback_speed_label.config(text=f"Speed: {self.speed:.1f}x")
 
     def skip_seconds(self, seconds):
         if not self.player:
