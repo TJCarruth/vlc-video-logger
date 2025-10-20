@@ -78,26 +78,27 @@ class CarCounterGUI:
             "Video Controls:\n"
             "  Space  : Play/Pause\n"
             "  = / -  : Speed Up / Down\n"
-            "  , / .  : Prev / Next Frame\n"
-            "  ; / '  : Skip -5s / +5s\n"
+            "  , / .  : Skip -50ms / +50ms\n"
+            "  ; / '  : Skip -0.5s / +0.5s\n"
             "  [ / ]  : Skip -5min / +5min\n"
             "  { / }  : Skip -1hr / +1hr\n"
             "\nLog Controls:\n"
-            "  Backspace       : Delete Last\n"
-            "  Ctrl+Z / Ctrl+Y : Undo / Redo\n"
-            "  Ctrl+f          : Search Log\n"
-            "  j               : passenger\n"
-            "  k               : truck\n"
-            "  l               : motorcycle\n"
-            "  d,              : brake before\n"
-            "  f               : brake after\n"
-            "  b               : avoidance\n"
-            "  y               : displacement\n"
-            "  0-9             : TPRS status\n"
+            "  Backspace : Delete Last\n"
+            "  Ctrl+Z    : Undo\n"
+            "  Ctrl+Y    : Undo\n"
+            "  Ctrl+f    : Search Log\n"
+            "  j         : passenger\n"
+            "  k         : truck\n"
+            "  l         : motorcycle\n"
+            "  d         : brake before\n"
+            "  f         : brake after\n"
+            "  b         : avoidance\n"
+            "  y         : displacement\n"
+            "  0-9       : TPRS status\n"
             "\nOverlay Controls:\n"
-            "  w               : Toggle\n"
-            "  e               : Dec Opacity\n"
-            "  r               : Inc Opacity\n"
+            "  w         : Toggle\n"
+            "  e         : Dec Opacity\n"
+            "  r         : Inc Opacity\n"
         )
 
         # Keep keybinds text compact by wrapping it and not forcing full-width expansion
@@ -142,10 +143,10 @@ class CarCounterGUI:
         self.root.bind('<space>', lambda e: self.toggle_play())
         self.root.bind('<KeyPress-equal>', lambda e: self.speed_up())
         self.root.bind('<KeyPress-minus>', lambda e: self.slow_down())
-        self.root.bind('<comma>', lambda e: self.prev_frame())
-        self.root.bind('<period>', lambda e: self.next_frame())
-        self.root.bind('<semicolon>', lambda e: self.skip_seconds(-5))
-        self.root.bind("'", lambda e: self.skip_seconds(5))
+        self.root.bind('<comma>', lambda e: self.skip_seconds(-0.05))                           # prev_frame())
+        self.root.bind('<period>', lambda e: self.skip_seconds(0.05))                                              # next_frame())
+        self.root.bind('<semicolon>', lambda e: self.skip_seconds(-0.5))
+        self.root.bind("'", lambda e: self.skip_seconds(0.5))
         self.root.bind('[', lambda e: self.skip_seconds(-300))
         self.root.bind(']', lambda e: self.skip_seconds(300))
         self.root.bind('{', lambda e: self.skip_seconds(-3600))
