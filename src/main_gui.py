@@ -71,7 +71,7 @@ class CarCounterGUI:
         # Frame rate entry. Used to calculate frame-by-frame stepping.
         fr_label = Label(controls_container, text="Frame Rate (fps):")
         fr_label.pack(side='top', pady=(0, 2), anchor='w')
-        self.fps_var = StringVar(value="24")
+        self.fps_var = StringVar(value="60")
         self.fps_entry = Entry(controls_container, textvariable=self.fps_var, width=8)
         self.fps_entry.pack(side='top', pady=(0, 8), anchor='w')
 
@@ -187,9 +187,9 @@ class CarCounterGUI:
         try:
             fps = float(self.fps_var.get())
             if fps <= 0:
-                fps = 24.0
+                fps = 60.0
         except Exception:
-            fps = 24.0
+            fps = 60.0
         ms_per_frame = int(1000 / fps)
         cur_ms = self.player.get_time()
         # Seek back 1.5 frames to ensure we land before the previous frame
