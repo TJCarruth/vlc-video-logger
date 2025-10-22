@@ -19,7 +19,7 @@ class CarCounterGUI:
             except Exception:
                 pass
         self.paused = True
-        self.speed_levels = [1, 5, 10]
+        self.speed_levels = [1, 3, 4]
         self.speed_index = 0
         self.speed = self.speed_levels[self.speed_index]
         self.start_offset = timedelta()
