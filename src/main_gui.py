@@ -87,7 +87,7 @@ class CarCounterGUI:
             "\nLog Controls:\n"
             "  Backspace : Delete Last\n"
             "  Ctrl+Z    : Undo\n"
-            "  Ctrl+Y    : Undo\n"
+            "  Ctrl+Y    : Redo\n"
             "  Ctrl+f    : Search Log\n"
             "  j         : passenger\n"
             "  k         : truck\n"
@@ -378,14 +378,15 @@ class CarCounterGUI:
         if self.player.is_playing():
             self.player.pause()
             self.paused = True
+            # reset speed to normal when resuming playback, there were issues otherwise
+            self.speed_index = 0
+            self.speed = self.speed_levels[self.speed_index]
+            # update the separate playback speed label
+            self.playback_speed_label.config(text=f"Speed: {self.speed:.1f}x")
         else:
             self.player.play()
             self.paused = False
-            # reset speed to normal when resuming playback, there were issues otherwise
-            self.speed = 1.0
-            self.player.set_rate(self.speed)
-            # update the separate playback speed label
-            self.playback_speed_label.config(text=f"Speed: {self.speed:.1f}x")
+
 
     def speed_up(self):
         if not self.player:
