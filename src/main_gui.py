@@ -116,8 +116,12 @@ class CarCounterGUI:
         self.video_duration_label.pack(side='top', pady=(0, 8), anchor='w')
 
         # Label to display current playback time
-        self.current_time_label = Label(controls_container, text="Current: 00:00:00", anchor='w', justify='left', font=("Courier", 10))
+        self.current_time_label = Label(controls_container, text="Current : 00:00:00", anchor='w', justify='left', font=("Courier", 10))
         self.current_time_label.pack(side='top', pady=(0, 8), anchor='w')
+
+        # Label to display playback percentage
+        self.percentage_label = Label(controls_container, text="Progress: 0.0%", anchor='w', justify='left', font=("Courier", 10))
+        self.percentage_label.pack(side='top', pady=(0, 8), anchor='w')
 
 
         log_btn_frame = Frame(controls_container)
@@ -277,13 +281,20 @@ class CarCounterGUI:
                 self.overlay = None
 
     def update_current_time(self):
-        if self.player and self.player.is_playing():
+        if self.player:
             time_ms = self.player.get_time()
             if time_ms >= 0:
+                # Format current time with offset
                 current_time = timedelta(milliseconds=time_ms) + self.start_offset
                 time_str = str(current_time).split('.')[0]
                 self.current_time_label.config(text=f"Current: {time_str}")
-        # Schedule the next update
+                self.current_time_label.config(text=f"Current: {time_str}")
+
+                # Calculate percentage (excluding offset)
+                duration_ms = self.player.get_media().get_duration()
+                if duration_ms > 0:
+                    percent = (time_ms / duration_ms) * 100
+                    self.percentage_label.config(text=f"Progress: {percent:.1f}%")
         self.root.after(100, self.update_current_time)
 
     def update_log_display(self, highlight_line=None, highlight_lines=None):
