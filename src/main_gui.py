@@ -115,6 +115,11 @@ class CarCounterGUI:
         self.video_duration_label = Label(controls_container, text="Duration: --:--:--", anchor='w', justify='left', font=("Courier", 10))
         self.video_duration_label.pack(side='top', pady=(0, 8), anchor='w')
 
+        # Label to display current playback time
+        self.current_time_label = Label(controls_container, text="Current: 00:00:00", anchor='w', justify='left', font=("Courier", 10))
+        self.current_time_label.pack(side='top', pady=(0, 8), anchor='w')
+
+
         log_btn_frame = Frame(controls_container)
         log_btn_frame.pack(side='top', pady=(40, 16), anchor='w')
 
@@ -260,6 +265,8 @@ class CarCounterGUI:
             # Start playback to force video output, then pause if needed
             self.player.play()
             self.root.after(200, self.player.pause)
+            self.update_current_time()
+
             # create overlay instance that sits above the video_frame
             try:
                 overlay_img = os.path.join(os.path.dirname(__file__), 'TPRS-displacement-evaluator.png')
@@ -268,6 +275,16 @@ class CarCounterGUI:
                 self.overlay = Overlay(self.root, self.video_frame, overlay_img, config_path=overlay_cfg)
             except Exception:
                 self.overlay = None
+
+    def update_current_time(self):
+        if self.player and self.player.is_playing():
+            time_ms = self.player.get_time()
+            if time_ms >= 0:
+                current_time = timedelta(milliseconds=time_ms) + self.start_offset
+                time_str = str(current_time).split('.')[0]
+                self.current_time_label.config(text=f"Current: {time_str}")
+        # Schedule the next update
+        self.root.after(100, self.update_current_time)
 
     def update_log_display(self, highlight_line=None, highlight_lines=None):
         """
@@ -398,6 +415,8 @@ class CarCounterGUI:
         if self.player.is_playing():
             self.player.pause()
             self.paused = True
+            # update current time immediately when pausing
+            self.update_current_time()
             # reset speed to normal when resuming playback, there were issues otherwise
             self.speed_index = 0
             self.speed = self.speed_levels[self.speed_index]
