@@ -381,6 +381,7 @@ class CarCounterGUI:
             # reset speed to normal when resuming playback, there were issues otherwise
             self.speed_index = 0
             self.speed = self.speed_levels[self.speed_index]
+            self.player.set_rate(self.speed)
             # update the separate playback speed label
             self.playback_speed_label.config(text=f"Speed: {self.speed:.1f}x")
         else:
