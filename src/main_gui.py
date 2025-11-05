@@ -111,6 +111,10 @@ class CarCounterGUI:
         self.playback_speed_label = Label(controls_container, text=f"Speed: {self.speed:.1f}x", anchor='w', justify='left', font=("Courier", 10, 'bold'))
         self.playback_speed_label.pack(side='top', pady=(2, 8), anchor='w')
 
+        # Label to display total video duration including offset
+        self.video_duration_label = Label(controls_container, text="Duration: --:--:--", anchor='w', justify='left', font=("Courier", 10))
+        self.video_duration_label.pack(side='top', pady=(0, 8), anchor='w')
+
         log_btn_frame = Frame(controls_container)
         log_btn_frame.pack(side='top', pady=(40, 16), anchor='w')
 
@@ -232,6 +236,22 @@ class CarCounterGUI:
             start_time_str = simpledialog.askstring("Start Time", prompt, initialvalue="00:00:00", parent=self.root)
             offset = self.parse_start_time(start_time_str) if start_time_str else None
             self.start_offset = offset if offset is not None else timedelta()
+
+            # Parse media metadata to get duration
+            media.parse()
+            duration_ms = media.get_duration()
+            # Combine duration with offset
+            if duration_ms > 0:
+                duration_total = timedelta(milliseconds=duration_ms) + self.start_offset
+                duration_str = str(duration_total)
+                # Format to HH:MM:SS (remove microseconds if present)
+                duration_str = duration_str.split('.')[0]
+                # Show in GUI
+                try:
+                    self.video_duration_label.config(text=f"Duration: {duration_str}")
+                except AttributeError:
+                    pass
+
             # update only the playback speed label (do not overwrite legend/status text)
             try:
                 self.playback_speed_label.config(text=f"Speed: {self.speed:.1f}x")
